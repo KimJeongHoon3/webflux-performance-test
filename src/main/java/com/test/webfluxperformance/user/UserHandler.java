@@ -3,6 +3,7 @@ package com.test.webfluxperformance.user;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.test.webfluxperformance.redis.RedisRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -12,6 +13,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 
 @Component
+@Slf4j
 public class UserHandler {
     private final RedisRepository redisRepository;
     private final ObjectMapper objectMapper;
@@ -26,13 +28,9 @@ public class UserHandler {
     public Mono<ServerResponse> registerUser(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(User.class)
                 .flatMap(redisRepository::save)
-                .flatMap(b -> {
-                    if(b){
-                        return ServerResponse.ok().build();
-                    }else{
-                        return Mono.error(new RuntimeException("redis save 에러"));
-                    }
-                });
+                .filter(Boolean::booleanValue)
+                .flatMap(b->ServerResponse.ok().build())
+                .switchIfEmpty(Mono.error(new RuntimeException("redis save 에러")));
     }
 
     public Mono<ServerResponse> find(ServerRequest serverRequest) {
@@ -48,7 +46,7 @@ public class UserHandler {
         });
 
         return ServerResponse.ok().body(zip,User.class);
-//        return redisRepository.find().flatMap(str -> ServerResponse.ok().bodyValue(getUser(str)));
+//        return ServerResponse.ok().body(userMono.log(),User.class);
     }
 
     private User getUser(String jsonStr){
